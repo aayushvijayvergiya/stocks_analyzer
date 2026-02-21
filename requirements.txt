@@ -1,0 +1,34 @@
+# Stocks Analyzer Backend - Python Dependencies
+# Generated from pyproject.toml
+# Install with: pip install -r requirements.txt
+
+# Core Framework
+fastapi>=0.128.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.11.10
+pydantic-settings>=2.10.1
+python-dotenv>=1.1.1
+
+# CrewAI and AI/LLM
+crewai[tools]==1.7.2
+langchain-groq>=0.3.8
+langchain-openai>=0.3.23
+
+# Data & Market Analysis
+yfinance>=1.1.0
+httpx>=0.28.1
+
+# Web Search & News
+duckduckgo-search>=8.1.1
+ddgs>=9.10.0
+
+# Caching & Storage
+redis>=7.1.0
+
+# Logging
+python-json-logger>=4.0.0
+
+# Development (optional)
+pytest>=8.0.0
+ruff>=0.8.0
+mypy>=1.13.0
