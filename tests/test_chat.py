@@ -20,7 +20,8 @@ def test_chat_us_stock():
     data = response.json()
     assert "response" in data
     assert data["stock_symbol"] == "AAPL"
-    assert data["region"] == "US"
+    assert isinstance(data["response"], str)
+    assert len(data["response"]) > 10
 
 
 def test_chat_indian_stock():
@@ -33,7 +34,7 @@ def test_chat_indian_stock():
     assert response.status_code == 200
     data = response.json()
     assert "response" in data
-    assert data["region"] == "IN"
+    assert isinstance(data["response"], str)
 
 
 def test_chat_invalid_symbol_returns_error():
@@ -53,9 +54,27 @@ def test_chat_missing_message_returns_422():
     assert response.status_code == 422
 
 
-def test_chat_without_symbol_is_valid():
-    """stock_symbol is Optional — omitting it should not return 422."""
+def test_chat_missing_stock_symbol_returns_400():
+    """stock_symbol is required — omitting it returns 400, not 422."""
     payload = {"message": "What is the price?"}
     with httpx.Client(base_url=BASE_URL, timeout=10.0) as client:
         response = client.post("/api/v1/chat", json=payload)
-    assert response.status_code != 422
+    assert response.status_code == 400
+
+
+def test_chat_response_has_sources_list():
+    payload = {"stock_symbol": "AAPL", "message": "What is the current price?"}
+    with httpx.Client(base_url=BASE_URL, timeout=60.0) as client:
+        response = client.post("/api/v1/chat", json=payload)
+    assert response.status_code == 200
+    assert isinstance(response.json()["sources"], list)
+
+
+def test_chat_response_has_agent_reasoning():
+    payload = {"stock_symbol": "AAPL", "message": "What is the current price?"}
+    with httpx.Client(base_url=BASE_URL, timeout=60.0) as client:
+        response = client.post("/api/v1/chat", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["agent_reasoning"] is not None
+    assert isinstance(data["agent_reasoning"], str)

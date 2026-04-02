@@ -60,3 +60,26 @@ def test_stock_recommendations_invalid_job_id():
     with httpx.Client(base_url=BASE_URL, timeout=10.0) as client:
         response = client.get("/api/v1/stocks/recommendations/nonexistent-job-id")
     assert response.status_code == 404
+
+
+def test_stock_recommendations_result_has_real_symbols():
+    """Completed job must not contain placeholder 'STOCK1' symbol."""
+    import time
+    with httpx.Client(base_url=BASE_URL, timeout=MAX_POLL_SECONDS + 30.0) as client:
+        create_resp = client.post("/api/v1/stocks/recommendations", json={
+            "timeframe": "30d", "market": "US"
+        })
+        assert create_resp.status_code == 200
+        job_id = create_resp.json()["job_id"]
+
+        result = _poll_job(client, job_id)
+        assert result["status"] == "completed"
+
+    rec = result.get("result", {})
+    all_symbols = [
+        stock["symbol"]
+        for sector in rec.get("top_sectors", [])
+        for stock in sector.get("top_stocks", [])
+    ]
+    assert "STOCK1" not in all_symbols
+    assert len(all_symbols) > 0
