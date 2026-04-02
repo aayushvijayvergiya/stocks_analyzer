@@ -49,17 +49,14 @@ async def chat_endpoint(
         # Validate and normalize stock symbol
         stock_symbol = request.stock_symbol
         market = request.market
-        
-        if stock_symbol:
-            stock_symbol, market = validate_and_normalize_symbol(
-                stock_symbol,
-                market
+
+        if not stock_symbol:
+            raise HTTPException(
+                status_code=400,
+                detail="stock_symbol is required. Provide a symbol like 'AAPL' or 'RELIANCE.NS'."
             )
-        else:
-            # Try to extract symbol from message
-            # TODO: Implement symbol extraction from natural language
-            stock_symbol = "AAPL"  # Default for now
-            market = "US"
+
+        stock_symbol, market = validate_and_normalize_symbol(stock_symbol, market)
         
         logger.info(
             f"Chat request",

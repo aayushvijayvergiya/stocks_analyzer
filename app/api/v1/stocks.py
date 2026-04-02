@@ -122,12 +122,11 @@ async def create_stock_recommendations(
         
         # Create job
         job_id = str(uuid.uuid4())
-        
+
         if job_store:
             await job_store.create_job(job_id, "stock_recommendations")
-        
+
         # Start background analysis
-        market_value = params.market or "ALL"
         background_tasks.add_task(
             run_stock_analysis_background,
             job_id=job_id,
