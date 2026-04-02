@@ -250,7 +250,7 @@ async def health_check():
     try:
         redis_client = await get_redis()
         if redis_client:
-            redis_client.ping()
+            await redis_client.ping()
             redis_status = "connected"
     except Exception as e:
         logger.warning(f"Redis health check failed: {e}")
