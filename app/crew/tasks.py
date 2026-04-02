@@ -1,6 +1,12 @@
 from crewai import Task
 from typing import List
 from datetime import datetime
+from app.crew.output_models import (
+    SectorRankingOutput,
+    SectorStocksOutput,
+    ChatAnswerOutput,
+    SectorFundsOutput,
+)
 
 class FinancialTasks:
     """Factory class for creating financial analysis tasks."""
@@ -90,17 +96,21 @@ class FinancialTasks:
             
             Use sector performance tools to analyze ETFs (US) or indices (India).
             """,
-            expected_output=f"""A sector ranking report containing:
-            - Top 3 sectors ranked by performance
-            - For each sector:
-              * Performance percentage over {timeframe}
-              * Current trend (uptrend/downtrend)
-              * Momentum (accelerating/decelerating)
-              * Brief explanation of drivers (why is this sector performing well?)
-            - Overall market context (which sectors are in favor, which are lagging)
-            
-            Provide clear rankings (#1, #2, #3) with data to support each.""",
+            expected_output=f"""Return a JSON object matching this exact schema:
+            {{
+              "sectors": [
+                {{
+                  "name": "Technology",
+                  "performance_pct": 12.5,
+                  "trend": "Strong Uptrend",
+                  "momentum": "Accelerating",
+                  "drivers": "Brief explanation of what is driving this sector"
+                }}
+              ]
+            }}
+            Include exactly 3 sectors ranked by performance_pct descending.""",
             agent=agent,
+            output_pydantic=SectorRankingOutput,
         )
     
     @staticmethod
@@ -124,18 +134,33 @@ class FinancialTasks:
             Market: {market}
             Timeframe: {timeframe}
             """,
-            expected_output=f"""A ranked list of top 3 stocks in {sector} sector containing:
-            - For each stock (#1, #2, #3):
-              * Stock symbol and company name
-              * Current price and currency
-              * Key metrics (P/E, market cap, volume)
-              * Performance over {timeframe} (% change)
-              * Recommendation score (0-10)
-              * Clear reasoning: Why is this stock a good pick? What makes it stand out?
-              * Risk factors to consider
-            
-            Ensure recommendations are backed by specific data points.""",
+            expected_output=f"""Return a JSON object matching this exact schema:
+            {{
+              "sector": "{sector}",
+              "market": "{market}",
+              "stocks": [
+                {{
+                  "symbol": "AAPL",
+                  "company_name": "Apple Inc.",
+                  "current_price": 175.50,
+                  "currency": "USD",
+                  "change_percent": 5.2,
+                  "recommendation_score": 8.5,
+                  "reasoning": "3-4 sentence explanation",
+                  "key_metrics": {{
+                    "pe_ratio": 28.5,
+                    "market_cap": 2800000000000.0,
+                    "volume": 50000000,
+                    "eps": 6.13,
+                    "debt_to_equity": 1.8,
+                    "roe": 0.35
+                  }}
+                }}
+              ]
+            }}
+            Include exactly 3 stocks. All numeric fields must be numbers, not strings.""",
             agent=agent,
+            output_pydantic=SectorStocksOutput,
         )
     
     @staticmethod
@@ -160,17 +185,21 @@ class FinancialTasks:
             
             This is a chat interaction - be helpful, clear, and conversational.
             """,
-            expected_output=f"""A conversational response to the user's question that:
-            - Directly answers what was asked
-            - Provides relevant data and context
-            - Cites sources for news or data points
-            - Offers additional helpful context if relevant
-            - Is written in a friendly, professional tone
-            - Is concise (not overly long)
-            
-            If asked for a recommendation, provide balanced view with pros/cons.
-            If data is unavailable, acknowledge it and provide best available information.""",
+            expected_output=f"""Return a JSON object matching this exact schema:
+            {{
+              "response": "Your conversational answer here (200-400 words)",
+              "sources": [
+                {{
+                  "title": "Article or data source title",
+                  "url": "https://source-url.com",
+                  "date": "YYYY-MM-DD"
+                }}
+              ],
+              "agent_reasoning": "Brief explanation of how you arrived at this answer"
+            }}
+            The response must directly answer the user's question. sources can be an empty list if no external sources were used.""",
             agent=agent,
+            output_pydantic=ChatAnswerOutput,
         )
     
     @staticmethod
@@ -228,4 +257,68 @@ class FinancialTasks:
             
             Ensure all recommendations are actionable and data-driven.""",
             agent=agent,
+        )
+
+    @staticmethod
+    def identify_top_etfs_in_sector(agent, sector: str, market: str, timeframe: str) -> Task:
+        """Task: Find and rank top ETFs/funds within a sector."""
+        US_SECTOR_ETFS = {
+            "Technology": "XLK", "Healthcare": "XLV", "Financials": "XLF",
+            "Consumer Discretionary": "XLY", "Industrials": "XLI", "Energy": "XLE",
+            "Materials": "XLB", "Consumer Staples": "XLP", "Utilities": "XLU",
+            "Real Estate": "XLRE", "Communication Services": "XLC"
+        }
+        INDIA_SECTOR_ETFS = {
+            "Technology": "^CNXIT", "Banking": "^NSEBANK", "Pharma": "^CNXPHARMA",
+            "Auto": "^CNXAUTO", "FMCG": "^CNXFMCG", "Metal": "^CNXMETAL",
+            "Realty": "^CNXREALTY", "Financial Services": "^CNXFIN"
+        }
+        etf_map = US_SECTOR_ETFS if market == "US" else INDIA_SECTOR_ETFS
+        primary_etf = etf_map.get(sector, "the sector ETF/index")
+        currency = "USD" if market == "US" else "INR"
+
+        return Task(
+            description=f"""Find the top 3 ETF or fund picks in the {sector} sector for the {market} market.
+
+            The primary ETF/index for this sector is: {primary_etf}
+
+            Your objectives:
+            1. Fetch current NAV/price and historical performance of {primary_etf} over {timeframe}
+            2. Identify 2 additional ETFs or sector indices in the {sector} space for {market}
+            3. For each ETF/fund fetch: current NAV, expense ratio (if available via yfinance info),
+               AUM (if available), and % change over {timeframe}
+            4. Rank them by performance and overall quality
+            5. Provide clear reasoning for each
+
+            Market: {market}
+            Sector: {sector}
+            Timeframe: {timeframe}
+            Currency: {currency}
+            Date: {datetime.now().strftime('%Y-%m-%d')}
+
+            Use the Stock Data Fetcher tool with the ETF symbols.
+            For India: use Nifty sectoral indices as proxies where direct ETF data is unavailable.
+            """,
+            expected_output=f"""Return a JSON object matching this exact schema:
+            {{
+              "sector": "{sector}",
+              "market": "{market}",
+              "funds": [
+                {{
+                  "symbol": "{primary_etf}",
+                  "name": "Full ETF name",
+                  "current_nav": 195.0,
+                  "currency": "{currency}",
+                  "expense_ratio": 0.13,
+                  "aum": "$50B",
+                  "change_percent": 3.2,
+                  "recommendation_score": 8.5,
+                  "reasoning": "2-3 sentence explanation of why this ETF is recommended"
+                }}
+              ]
+            }}
+            Include exactly 3 funds. Set expense_ratio and aum to null if not available from yfinance.
+            All numeric fields must be numbers, not strings.""",
+            agent=agent,
+            output_pydantic=SectorFundsOutput,
         )
