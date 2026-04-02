@@ -5,7 +5,7 @@ Uses Groq for fast, free intent classification with JSON outputs.
 """
 
 import json
-from typing import Dict
+from typing import Dict, Optional
 from groq import AsyncGroq
 
 from app.config import settings
@@ -13,13 +13,25 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+_groq_client: Optional[AsyncGroq] = None
+
+
+def _get_groq_client() -> AsyncGroq:
+    """Return module-level Groq client, creating it on first call."""
+    global _groq_client
+    if _groq_client is None:
+        _groq_client = AsyncGroq(
+            api_key=settings.GROQ_API_KEY.get_secret_value() if settings.GROQ_API_KEY else None
+        )
+    return _groq_client
+
 
 async def classify_intent(message: str) -> Dict[str, bool]:
     """Classify user intent using Groq LLM.
-    
+
     Args:
         message: User's financial query
-        
+
     Returns:
         Dict with intent flags: {
             "needs_news": bool,
@@ -27,19 +39,17 @@ async def classify_intent(message: str) -> Dict[str, bool]:
             "needs_analysis": bool,
             "needs_comparison": bool
         }
-        
+
     Example:
         >>> intent = await classify_intent("What's the latest AAPL news?")
         >>> print(intent)
         {"needs_news": True, "needs_metrics": False, ...}
     """
     try:
-        client = AsyncGroq(
-            api_key=settings.GROQ_API_KEY.get_secret_value() if settings.GROQ_API_KEY else None
-        )
-        
+        client = _get_groq_client()
+
         response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",  # Fast & accurate
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",
@@ -49,7 +59,7 @@ async def classify_intent(message: str) -> Dict[str, bool]:
 Guidelines:
 - needs_news: User wants recent events, news, announcements, or developments
 - needs_metrics: User wants financial data like price, ratios, earnings, revenue
-- needs_analysis: User wants investment advice, recommendations, or forecasts  
+- needs_analysis: User wants investment advice, recommendations, or forecasts
 - needs_comparison: User is comparing multiple stocks
 
 Multiple can be true. If unclear, default needs_metrics=true."""
@@ -63,28 +73,25 @@ Multiple can be true. If unclear, default needs_metrics=true."""
             temperature=0.1,
             max_tokens=100
         )
-        
+
         content = response.choices[0].message.content
         if content is None:
             raise ValueError("Empty response from Groq")
         intent = json.loads(content)
-        logger.info(f"Classified intent for '{message[:50]}...': {intent}")
-        
-        # Ensure all keys exist
+        logger.info(f"Classified intent for '{message[:50]}': {intent}")
+
         return {
             "needs_news": intent.get("needs_news", False),
             "needs_metrics": intent.get("needs_metrics", False),
             "needs_analysis": intent.get("needs_analysis", False),
             "needs_comparison": intent.get("needs_comparison", False),
         }
-        
+
     except Exception as e:
         logger.warning(f"Groq classification failed: {e}, defaulting to metrics")
-        # Simple fallback: default to metrics
         return {
             "needs_news": False,
             "needs_metrics": True,
             "needs_analysis": False,
             "needs_comparison": False,
         }
-
