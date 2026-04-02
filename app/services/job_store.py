@@ -52,8 +52,8 @@ class JobStore:
         job_id: str,
         status: str,
         progress: str = '',
-        result: dict = {},
-        error: str = ''
+        result: Optional[dict] = None,
+        error: Optional[str] = None
     ) -> bool:
         """Update job status and progress.
         
@@ -86,13 +86,13 @@ class JobStore:
         
         # Update fields
         job_data["status"] = status
-        
-        if progress is not None:
+
+        if progress:
             job_data["progress"] = progress
-        
+
         if result is not None:
             job_data["result"] = result
-        
+
         if error is not None:
             job_data["error"] = error
         
