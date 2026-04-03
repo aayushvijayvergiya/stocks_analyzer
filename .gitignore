@@ -10,6 +10,9 @@ frontend/out/
 # Environment files at root
 .env
 
+# Git worktrees
+.worktrees/
+
 # OS
 .DS_Store
 Thumbs.db
