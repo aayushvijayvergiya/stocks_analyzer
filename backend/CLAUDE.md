@@ -1,4 +1,4 @@
-# CLAUDE.md — stocks_analyzer_be_01
+# CLAUDE.md — backend
 
 FastAPI + CrewAI backend for real-time stock and fund analysis. Python 3.12.
 
