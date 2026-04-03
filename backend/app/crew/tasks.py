@@ -164,6 +164,55 @@ class FinancialTasks:
         )
     
     @staticmethod
+    def reflect_on_stock_picks(agent, sector: str, market: str, context_tasks: list) -> Task:
+        """Task: Critique and refine stock picks before finalising."""
+        return Task(
+            description=f"""Review and verify the stock picks for the {sector} sector in the {market} market.
+
+            For each recommended stock, check:
+            1. Is the ticker symbol a real, actively traded symbol on the correct exchange?
+            2. Is each metric (P/E, ROE, market cap, EPS) an actual fetched value — not an estimate or placeholder?
+            3. Is the recommendation_score (0–10) justified by the data, not inflated?
+            4. Does the reasoning cite specific numbers, not vague generalities like "strong growth potential"?
+
+            Replace any pick that fails these checks with the next best alternative using available data.
+            Output the final verified list of top 3 stocks with complete, accurate data.
+
+            Sector: {sector}
+            Market: {market}
+            Date: {datetime.now().strftime('%Y-%m-%d')}
+            """,
+            expected_output=f"""Return a JSON object matching this exact schema:
+            {{
+              "sector": "{sector}",
+              "market": "{market}",
+              "stocks": [
+                {{
+                  "symbol": "AAPL",
+                  "company_name": "Apple Inc.",
+                  "current_price": 175.50,
+                  "currency": "USD",
+                  "change_percent": 5.2,
+                  "recommendation_score": 8.5,
+                  "reasoning": "3-4 sentence explanation citing specific metrics",
+                  "key_metrics": {{
+                    "pe_ratio": 28.5,
+                    "market_cap": 2800000000000.0,
+                    "volume": 50000000,
+                    "eps": 6.13,
+                    "debt_to_equity": 1.8,
+                    "roe": 0.35
+                  }}
+                }}
+              ]
+            }}
+            Include exactly 3 verified stocks. All numeric fields must be real fetched values, not estimates.""",
+            agent=agent,
+            output_pydantic=SectorStocksOutput,
+            context=context_tasks,
+        )
+
+    @staticmethod
     def synthesize_chat_response(agent, user_question: str, stock_symbol: str, market: str) -> Task:
         """Task: Answer user's question about a stock (for chat endpoint)."""
         return Task(
@@ -321,4 +370,49 @@ class FinancialTasks:
             All numeric fields must be numbers, not strings.""",
             agent=agent,
             output_pydantic=SectorFundsOutput,
+        )
+
+    @staticmethod
+    def reflect_on_fund_picks(agent, sector: str, market: str, context_tasks: list) -> Task:
+        """Task: Critique and refine ETF/fund picks before finalising."""
+        return Task(
+            description=f"""Review and verify the ETF/fund picks for the {sector} sector in the {market} market.
+
+            For each recommended fund, check:
+            1. Is the ETF/fund symbol a real, actively traded instrument on the correct exchange?
+            2. Is the NAV (current_nav) an actual fetched value — not an estimate?
+            3. Are expense_ratio and AUM from real yfinance data (null is acceptable if unavailable)?
+            4. Is the recommendation_score (0–10) justified by performance data?
+            5. Does the reasoning reference specific performance figures?
+
+            Replace any pick that fails these checks with the next best verified alternative.
+            Output the final verified list of top 3 funds with complete, accurate data.
+
+            Sector: {sector}
+            Market: {market}
+            Date: {datetime.now().strftime('%Y-%m-%d')}
+            """,
+            expected_output=f"""Return a JSON object matching this exact schema:
+            {{
+              "sector": "{sector}",
+              "market": "{market}",
+              "funds": [
+                {{
+                  "symbol": "XLK",
+                  "name": "Full ETF name",
+                  "current_nav": 195.0,
+                  "currency": "USD",
+                  "expense_ratio": 0.13,
+                  "aum": "$50B",
+                  "change_percent": 3.2,
+                  "recommendation_score": 8.5,
+                  "reasoning": "2-3 sentence explanation citing specific performance figures"
+                }}
+              ]
+            }}
+            Include exactly 3 verified funds. Set expense_ratio and aum to null if not available.
+            All numeric fields must be real fetched values, not estimates.""",
+            agent=agent,
+            output_pydantic=SectorFundsOutput,
+            context=context_tasks,
         )

@@ -21,8 +21,8 @@ from app.utils.exceptions import CrewExecutionError
 logger = get_logger(__name__)
 
 SECTOR_TIMEOUT = 60
-STOCK_TIMEOUT = 60
-FUND_TIMEOUT = 60
+STOCK_TIMEOUT = 90   # increased to accommodate reflection task
+FUND_TIMEOUT = 90    # increased to accommodate reflection task
 
 
 class RecommendationsService:
@@ -57,69 +57,34 @@ class RecommendationsService:
             await self.job_store.update_job(job_id, "processing", "Initializing comprehensive analysis...")
 
         try:
-            market_researcher = FinancialAgents.market_researcher()
-            data_analyst = FinancialAgents.financial_data_analyst()
-            sector_analyst = FinancialAgents.sector_performance_analyst()
-            advisor = FinancialAgents.investment_advisor()
-
-            results: Dict[str, List] = {}
             markets_to_analyze = ["US", "IN"] if market == "ALL" else [market]
 
-            for mkt in markets_to_analyze:
-                if self.job_store:
-                    await self.job_store.update_job(
-                        job_id, "processing", f"Analyzing {mkt} market sectors..."
-                    )
-
-                sector_task = FinancialTasks.identify_top_sectors(sector_analyst, mkt, timeframe)
-                sector_crew = Crew(
-                    agents=[sector_analyst],
-                    tasks=[sector_task],
-                    process=Process.sequential,
-                    verbose=True, memory=False, cache=True,
+            if self.job_store:
+                await self.job_store.update_job(
+                    job_id, "processing", "Analyzing market sectors in parallel..."
                 )
-                sector_result = await self._run_crew_with_timeout(sector_crew, SECTOR_TIMEOUT)
-                ranking: SectorRankingOutput = sector_result.pydantic
-                top_sectors = ranking.sectors[:3]
 
-                sector_recommendations = []
-                for i, sector_info in enumerate(top_sectors, 1):
-                    if self.job_store:
-                        await self.job_store.update_job(
-                            job_id, "processing",
-                            f"Finding top stocks in {sector_info.name} sector..."
-                        )
+            market_coros = [
+                self._run_market_stock_analysis(mkt, timeframe, job_id)
+                for mkt in markets_to_analyze
+            ]
+            market_results = await asyncio.gather(*market_coros, return_exceptions=True)
 
-                    stock_task = FinancialTasks.find_top_stocks_in_sector(
-                        advisor, sector_info.name, mkt, timeframe
-                    )
-                    stock_crew = Crew(
-                        agents=[data_analyst, advisor],
-                        tasks=[stock_task],
-                        process=Process.sequential,
-                        verbose=True, memory=False, cache=True,
-                    )
-                    stock_result = await self._run_crew_with_timeout(stock_crew, STOCK_TIMEOUT)
-                    stocks_output: SectorStocksOutput = stock_result.pydantic
+            combined: List = []
+            for i, res in enumerate(market_results):
+                mkt = markets_to_analyze[i]
+                if isinstance(res, Exception):
+                    logger.error(f"Market {mkt} stock analysis failed: {res}")
+                else:
+                    combined.extend(res)
 
-                    sector_recommendations.append({
-                        "sector": sector_info.name,
-                        "rank": i,
-                        "performance_percent": sector_info.performance_pct,
-                        "market": mkt,
-                        "top_stocks": [s.model_dump() for s in stocks_output.stocks[:3]]
-                    })
-
-                results[mkt] = sector_recommendations
+            if not combined:
+                raise CrewExecutionError("All market analyses failed.")
 
             if self.job_store:
                 await self.job_store.update_job(
                     job_id, "processing", "Creating final recommendation report..."
                 )
-
-            combined: List = []
-            for mkt_results in results.values():
-                combined.extend(mkt_results)
 
             final_result = {
                 "job_id": job_id,
@@ -186,63 +151,29 @@ class RecommendationsService:
             )
 
         try:
-            sector_analyst = FinancialAgents.sector_performance_analyst()
-            data_analyst = FinancialAgents.financial_data_analyst()
-            advisor = FinancialAgents.investment_advisor()
-
-            results: Dict[str, List] = {}
             markets_to_analyze = ["US", "IN"] if market == "ALL" else [market]
 
-            for mkt in markets_to_analyze:
-                if self.job_store:
-                    await self.job_store.update_job(
-                        job_id, "processing", f"Analyzing {mkt} market sectors for ETFs..."
-                    )
-
-                sector_task = FinancialTasks.identify_top_sectors(sector_analyst, mkt, timeframe)
-                sector_crew = Crew(
-                    agents=[sector_analyst],
-                    tasks=[sector_task],
-                    process=Process.sequential,
-                    verbose=True, memory=False, cache=True,
+            if self.job_store:
+                await self.job_store.update_job(
+                    job_id, "processing", "Analyzing sector ETFs in parallel..."
                 )
-                sector_result = await self._run_crew_with_timeout(sector_crew, SECTOR_TIMEOUT)
-                ranking: SectorRankingOutput = sector_result.pydantic
-                top_sectors = ranking.sectors[:3]
 
-                sector_fund_recommendations = []
-                for i, sector_info in enumerate(top_sectors, 1):
-                    if self.job_store:
-                        await self.job_store.update_job(
-                            job_id, "processing",
-                            f"Finding top ETFs in {sector_info.name} sector..."
-                        )
-
-                    etf_task = FinancialTasks.identify_top_etfs_in_sector(
-                        advisor, sector_info.name, mkt, timeframe
-                    )
-                    etf_crew = Crew(
-                        agents=[data_analyst, advisor],
-                        tasks=[etf_task],
-                        process=Process.sequential,
-                        verbose=True, memory=False, cache=True,
-                    )
-                    etf_result = await self._run_crew_with_timeout(etf_crew, FUND_TIMEOUT)
-                    funds_output: SectorFundsOutput = etf_result.pydantic
-
-                    sector_fund_recommendations.append({
-                        "sector": sector_info.name,
-                        "rank": i,
-                        "performance_percent": sector_info.performance_pct,
-                        "market": mkt,
-                        "top_funds": [f.model_dump() for f in funds_output.funds[:3]]
-                    })
-
-                results[mkt] = sector_fund_recommendations
+            market_coros = [
+                self._run_market_fund_analysis(mkt, timeframe, job_id)
+                for mkt in markets_to_analyze
+            ]
+            market_results = await asyncio.gather(*market_coros, return_exceptions=True)
 
             combined: List = []
-            for mkt_results in results.values():
-                combined.extend(mkt_results)
+            for i, res in enumerate(market_results):
+                mkt = markets_to_analyze[i]
+                if isinstance(res, Exception):
+                    logger.error(f"Market {mkt} fund analysis failed: {res}")
+                else:
+                    combined.extend(res)
+
+            if not combined:
+                raise CrewExecutionError("All fund market analyses failed.")
 
             final_result = {
                 "job_id": job_id,
@@ -278,6 +209,176 @@ class RecommendationsService:
             if self.job_store:
                 await self.job_store.update_job(job_id, "failed", error=error_msg)
             raise CrewExecutionError(error_msg)
+
+    async def _run_stock_crew_for_sector(
+        self,
+        sector_info,
+        market: str,
+        timeframe: str,
+        rank: int,
+    ) -> dict:
+        """Run a sequential stock picking + reflection crew for one sector.
+
+        Creates its own agent instances so it is safe to run concurrently.
+        """
+        data_analyst = FinancialAgents.financial_data_analyst()
+        advisor = FinancialAgents.investment_advisor()
+
+        stock_task = FinancialTasks.find_top_stocks_in_sector(
+            data_analyst, sector_info.name, market, timeframe
+        )
+        reflect_task = FinancialTasks.reflect_on_stock_picks(
+            advisor, sector_info.name, market, [stock_task]
+        )
+
+        crew = Crew(
+            agents=[data_analyst, advisor],
+            tasks=[stock_task, reflect_task],
+            process=Process.sequential,
+            verbose=True,
+            memory=False,
+            cache=True,
+        )
+
+        result = await self._run_crew_with_timeout(crew, STOCK_TIMEOUT)
+        stocks_output: SectorStocksOutput = result.pydantic
+
+        return {
+            "sector": sector_info.name,
+            "rank": rank,
+            "performance_percent": sector_info.performance_pct,
+            "market": market,
+            "top_stocks": [s.model_dump() for s in stocks_output.stocks[:3]],
+        }
+
+    async def _run_fund_crew_for_sector(
+        self,
+        sector_info,
+        market: str,
+        timeframe: str,
+        rank: int,
+    ) -> dict:
+        """Run a sequential fund picking + reflection crew for one sector.
+
+        Creates its own agent instances so it is safe to run concurrently.
+        """
+        data_analyst = FinancialAgents.financial_data_analyst()
+        advisor = FinancialAgents.investment_advisor()
+
+        etf_task = FinancialTasks.identify_top_etfs_in_sector(
+            data_analyst, sector_info.name, market, timeframe
+        )
+        reflect_task = FinancialTasks.reflect_on_fund_picks(
+            advisor, sector_info.name, market, [etf_task]
+        )
+
+        crew = Crew(
+            agents=[data_analyst, advisor],
+            tasks=[etf_task, reflect_task],
+            process=Process.sequential,
+            verbose=True,
+            memory=False,
+            cache=True,
+        )
+
+        result = await self._run_crew_with_timeout(crew, FUND_TIMEOUT)
+        funds_output: SectorFundsOutput = result.pydantic
+
+        return {
+            "sector": sector_info.name,
+            "rank": rank,
+            "performance_percent": sector_info.performance_pct,
+            "market": market,
+            "top_funds": [f.model_dump() for f in funds_output.funds[:3]],
+        }
+
+    async def _run_market_stock_analysis(
+        self,
+        market: str,
+        timeframe: str,
+        job_id: Optional[str],
+    ) -> List[dict]:
+        """Identify top sectors then run per-sector stock crews in parallel for one market."""
+        if self.job_store:
+            await self.job_store.update_job(
+                job_id, "processing", f"Analyzing {market} market sectors..."
+            )
+
+        sector_analyst = FinancialAgents.sector_performance_analyst()
+        sector_task = FinancialTasks.identify_top_sectors(sector_analyst, market, timeframe)
+        sector_crew = Crew(
+            agents=[sector_analyst],
+            tasks=[sector_task],
+            process=Process.sequential,
+            verbose=True,
+            memory=False,
+            cache=True,
+        )
+        sector_result = await self._run_crew_with_timeout(sector_crew, SECTOR_TIMEOUT)
+        ranking: SectorRankingOutput = sector_result.pydantic
+        top_sectors = ranking.sectors[:3]
+
+        coros = [
+            self._run_stock_crew_for_sector(sector_info, market, timeframe, rank=i)
+            for i, sector_info in enumerate(top_sectors, 1)
+        ]
+        sector_results = await asyncio.gather(*coros, return_exceptions=True)
+
+        successful = []
+        for i, res in enumerate(sector_results):
+            if isinstance(res, Exception):
+                logger.warning(f"Sector {i + 1} stock analysis failed for {market}: {res}")
+            else:
+                successful.append(res)
+
+        if not successful:
+            raise CrewExecutionError(f"All sector analyses failed for {market} market.")
+
+        return successful
+
+    async def _run_market_fund_analysis(
+        self,
+        market: str,
+        timeframe: str,
+        job_id: Optional[str],
+    ) -> List[dict]:
+        """Identify top sectors then run per-sector fund crews in parallel for one market."""
+        if self.job_store:
+            await self.job_store.update_job(
+                job_id, "processing", f"Analyzing {market} market sectors for ETFs..."
+            )
+
+        sector_analyst = FinancialAgents.sector_performance_analyst()
+        sector_task = FinancialTasks.identify_top_sectors(sector_analyst, market, timeframe)
+        sector_crew = Crew(
+            agents=[sector_analyst],
+            tasks=[sector_task],
+            process=Process.sequential,
+            verbose=True,
+            memory=False,
+            cache=True,
+        )
+        sector_result = await self._run_crew_with_timeout(sector_crew, SECTOR_TIMEOUT)
+        ranking: SectorRankingOutput = sector_result.pydantic
+        top_sectors = ranking.sectors[:3]
+
+        coros = [
+            self._run_fund_crew_for_sector(sector_info, market, timeframe, rank=i)
+            for i, sector_info in enumerate(top_sectors, 1)
+        ]
+        sector_results = await asyncio.gather(*coros, return_exceptions=True)
+
+        successful = []
+        for i, res in enumerate(sector_results):
+            if isinstance(res, Exception):
+                logger.warning(f"Sector {i + 1} fund analysis failed for {market}: {res}")
+            else:
+                successful.append(res)
+
+        if not successful:
+            raise CrewExecutionError(f"All fund sector analyses failed for {market} market.")
+
+        return successful
 
     async def _run_crew_with_timeout(self, crew: Crew, timeout: int):
         loop = asyncio.get_event_loop()

@@ -35,3 +35,8 @@ asyncio_mode = "auto"
 
 [tool.crewai]
 type = "crew"
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.3.0",
+]
