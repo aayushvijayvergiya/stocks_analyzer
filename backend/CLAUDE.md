@@ -60,7 +60,7 @@ app/
 Tasks use `output_pydantic=<Model>` so agents return validated Pydantic objects. Access via `result.pydantic` (never `str(result)`).
 
 **Intent-driven chat:**
-`classify_intent(message)` uses Groq (llama-3.3-70b-versatile) to decide which tasks to run: `needs_news` → `research_stock_news`, `needs_metrics` → `analyze_stock_financials`, neither → default to financials.
+`classify_intent(message)` uses OpenRouter (`LLM_MODEL_NAME` from env) to decide which tasks to run: `needs_news` → `research_stock_news`, `needs_metrics` → `analyze_stock_financials`, neither → default to financials.
 
 **Service split:**
 - `ChatService` — owns the chat crew flow
@@ -70,11 +70,13 @@ Tasks use `output_pydantic=<Model>` so agents return validated Pydantic objects.
 ## Environment Variables (.env)
 
 ```
-LLM_PROVIDER=groq          # groq | openai
-GROQ_API_KEY=gsk_...       # Required for Groq LLM + intent classifier
-OPENAI_API_KEY=sk-...      # Required if LLM_PROVIDER=openai
-NEWS_API_KEY=...            # Optional (NewsAPI fallback)
-SERPER_API_KEY=...          # Optional (better web search)
+LLM_PROVIDER=openrouter                       # openrouter | openai | groq
+OPENROUTER_API_KEY=sk-or-...                  # Required for OpenRouter LLM + intent classifier
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1  # Default, can override
+LLM_MODEL_NAME=meta-llama/llama-4-scout:free  # Any model available on OpenRouter
+OPENAI_API_KEY=sk-...                         # Optional fallback if LLM_PROVIDER=openai
+NEWS_API_KEY=...                              # Optional (NewsAPI fallback)
+SERPER_API_KEY=...                            # Optional (better web search)
 REDIS_URL=redis://localhost:6379
 ```
 

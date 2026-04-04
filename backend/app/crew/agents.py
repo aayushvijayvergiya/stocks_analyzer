@@ -1,6 +1,5 @@
 from crewai import Agent
 from langchain_openai import ChatOpenAI
-from langchain_groq import ChatGroq
 from typing import Optional
 from app.config import settings
 from app.crew.tools.financial_data import PortfolioDataTool, YFinanceDataTool
@@ -12,39 +11,48 @@ logger = get_logger(__name__)
 
 def get_llm(temperature: float = 0.3):
     """Get configured LLM based on settings.
-    
-    Priority: Groq (free) > OpenAI > raises error
+
+    Priority: OpenRouter > OpenAI > raises error
     """
     provider = settings.LLM_PROVIDER.lower()
-    
-    if provider == "groq" and settings.GROQ_API_KEY:
-        logger.info(f"Using Groq LLM: {settings.LLM_MODEL_NAME}")
-        return ChatGroq(
-            api_key=settings.GROQ_API_KEY,
-            model=settings.LLM_MODEL_NAME or "llama-3.3-70b-versatile",
+
+    if provider == "openrouter" and settings.OPENROUTER_API_KEY:
+        logger.info(f"Using OpenRouter LLM: {settings.LLM_MODEL_NAME}")
+        return ChatOpenAI(
+            api_key=settings.OPENROUTER_API_KEY.get_secret_value(),
+            base_url=settings.OPENROUTER_BASE_URL,
+            model=settings.LLM_MODEL_NAME,
             temperature=temperature
         )
-    
+
     elif provider == "openai" and settings.OPENAI_API_KEY:
         logger.info(f"Using OpenAI LLM: {settings.LLM_MODEL_NAME}")
         return ChatOpenAI(
-            api_key=settings.OPENAI_API_KEY,
+            api_key=settings.OPENAI_API_KEY.get_secret_value(),
             model=settings.LLM_MODEL_NAME or "gpt-4o-mini",
             temperature=temperature
         )
-    
+
     else:
-        # Fallback: try OpenAI if available
+        # Fallback: try OpenRouter, then OpenAI
+        if settings.OPENROUTER_API_KEY:
+            logger.warning("LLM provider not configured correctly, using OpenRouter fallback")
+            return ChatOpenAI(
+                api_key=settings.OPENROUTER_API_KEY.get_secret_value(),
+                base_url=settings.OPENROUTER_BASE_URL,
+                model=settings.LLM_MODEL_NAME,
+                temperature=temperature
+            )
         if settings.OPENAI_API_KEY:
             logger.warning("LLM provider not set or API key missing, using OpenAI fallback")
             return ChatOpenAI(
-                api_key=settings.OPENAI_API_KEY,
+                api_key=settings.OPENAI_API_KEY.get_secret_value(),
                 model="gpt-4o-mini",
                 temperature=temperature
             )
-        
+
         raise ValueError(
-            "No LLM API key configured. Set GROQ_API_KEY or OPENAI_API_KEY in .env file."
+            "No LLM API key configured. Set OPENROUTER_API_KEY or OPENAI_API_KEY in .env file."
         )
         
         

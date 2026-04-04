@@ -11,10 +11,12 @@ class Settings(BaseSettings):
     )
 
     # LLM Config
-    LLM_PROVIDER: str = Field(default="openai", description="groq/openai/ollama")
-    GROQ_API_KEY: Optional[SecretStr] = None
+    LLM_PROVIDER: str = Field(default="openrouter", description="openrouter/openai/groq/ollama")
+    OPENROUTER_API_KEY: Optional[SecretStr] = None
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENAI_API_KEY: Optional[SecretStr] = None
-    LLM_MODEL_NAME: str = "gpt-4o-mini"
+    GROQ_API_KEY: Optional[SecretStr] = None
+    LLM_MODEL_NAME: str = "meta-llama/llama-4-scout:free"
 
     # Data Sources
     NEWS_API_KEY: Optional[SecretStr] = None

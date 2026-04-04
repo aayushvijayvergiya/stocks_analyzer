@@ -1,33 +1,34 @@
 """
 Intent Classifier for Financial Queries.
 
-Uses Groq for fast, free intent classification with JSON outputs.
+Uses OpenRouter for fast intent classification with JSON outputs.
 """
 
 import json
 from typing import Dict, Optional
-from groq import AsyncGroq
+from openai import AsyncOpenAI
 
 from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_groq_client: Optional[AsyncGroq] = None
+_openrouter_client: Optional[AsyncOpenAI] = None
 
 
-def _get_groq_client() -> AsyncGroq:
-    """Return module-level Groq client, creating it on first call."""
-    global _groq_client
-    if _groq_client is None:
-        _groq_client = AsyncGroq(
-            api_key=settings.GROQ_API_KEY.get_secret_value() if settings.GROQ_API_KEY else None
+def _get_client() -> AsyncOpenAI:
+    """Return module-level OpenRouter client, creating it on first call."""
+    global _openrouter_client
+    if _openrouter_client is None:
+        _openrouter_client = AsyncOpenAI(
+            api_key=settings.OPENROUTER_API_KEY.get_secret_value() if settings.OPENROUTER_API_KEY else None,
+            base_url=settings.OPENROUTER_BASE_URL,
         )
-    return _groq_client
+    return _openrouter_client
 
 
 async def classify_intent(message: str) -> Dict[str, bool]:
-    """Classify user intent using Groq LLM.
+    """Classify user intent using OpenRouter LLM.
 
     Args:
         message: User's financial query
@@ -46,10 +47,10 @@ async def classify_intent(message: str) -> Dict[str, bool]:
         {"needs_news": True, "needs_metrics": False, ...}
     """
     try:
-        client = _get_groq_client()
+        client = _get_client()
 
         response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=settings.LLM_MODEL_NAME,
             messages=[
                 {
                     "role": "system",
@@ -76,7 +77,7 @@ Multiple can be true. If unclear, default needs_metrics=true."""
 
         content = response.choices[0].message.content
         if content is None:
-            raise ValueError("Empty response from Groq")
+            raise ValueError("Empty response from OpenRouter")
         intent = json.loads(content)
         logger.info(f"Classified intent for '{message[:50]}': {intent}")
 
@@ -88,7 +89,7 @@ Multiple can be true. If unclear, default needs_metrics=true."""
         }
 
     except Exception as e:
-        logger.warning(f"Groq classification failed: {e}, defaulting to metrics")
+        logger.warning(f"OpenRouter classification failed: {e}, defaulting to metrics")
         return {
             "needs_news": False,
             "needs_metrics": True,
