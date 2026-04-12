@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENAI_API_KEY: Optional[SecretStr] = None
     GROQ_API_KEY: Optional[SecretStr] = None
-    LLM_MODEL_NAME: str = "meta-llama/llama-4-scout:free"
+    LLM_MODEL_NAME: str = "google/gemma-4-31b-it:free"
+    INTENT_MODEL_NAME: str = "meta-llama/llama-3.2-3b-instruct:free"  # fast small model for intent classification
 
     # Data Sources
     NEWS_API_KEY: Optional[SecretStr] = None
@@ -42,6 +43,8 @@ class Settings(BaseSettings):
     CACHE_TTL_CHAT: int = 300
 
     # Crew Config
+    # Per-crew subprocess hard timeout. With prefetched data and max_iter=2
+    # each crew should complete in 15–30s; 90s gives generous headroom.
     CREW_TIMEOUT_SECONDS: int = 90
     
     VERSION: str = "1.0.0"

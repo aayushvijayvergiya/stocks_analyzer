@@ -31,18 +31,21 @@ uv sync
 app/
 ├── api/v1/          # FastAPI routers (chat, stocks, funds)
 ├── crew/
-│   ├── agents.py    # 4 CrewAI agents (market_researcher, financial_data_analyst,
-│   │                #   sector_performance_analyst, investment_advisor)
-│   ├── tasks.py     # Task factory with output_pydantic on structured tasks
+│   ├── agents.py    # 2 active CrewAI agents: financial_data_analyst (stock/ETF ranking),
+│   │                #   investment_advisor (chat synthesis). Both tools=[], max_iter=2.
+│   ├── tasks.py     # Task factory — embeds prefetched JSON in description; output_pydantic
 │   ├── output_models.py  # Pydantic models for crew outputs (SectorRankingOutput, etc.)
-│   └── tools/       # yfinance, web search, sector analysis, news tools
+│   └── tools/       # sector_analysis (SectorPerformanceTool, SectorStocksMapperTool),
+│                    #   market_research tools (web search, news, sentiment)
 ├── services/
-│   ├── chat_service.py           # Intent-driven chat crew execution
-│   ├── recommendations_service.py # Stock + fund recommendation crews (separate flows)
+│   ├── chat_service.py           # Prefetches snapshot+news, then runs chat crew
+│   ├── recommendations_service.py # Prefetches sector stocks/ETFs, runs per-sector crews
+│   ├── crew_runner.py            # Subprocess-based crew execution with hard timeout/kill
+│   ├── data_fetchers.py          # Pure-Python yfinance fetchers (no LLM)
 │   ├── crew_service.py           # Thin facade (backward compat only)
 │   ├── job_store.py              # Redis-backed async job tracking
 │   ├── cache.py                  # Redis TTL cache
-│   └── intent_classifier.py      # Groq JSON-mode intent classifier (singleton client)
+│   └── intent_classifier.py      # OpenRouter JSON-mode intent classifier (singleton)
 ├── models/
 │   ├── requests.py   # ChatRequest, StockRecommendationParams, Source, etc.
 │   └── responses.py  # ChatResponse, JobStatus, StockRecommendationResponse, etc.
@@ -59,8 +62,15 @@ app/
 **Structured crew output:**
 Tasks use `output_pydantic=<Model>` so agents return validated Pydantic objects. Access via `result.pydantic` (never `str(result)`).
 
+**Pre-fetch + crew pattern:**
+Data is fetched synchronously in Python (via `data_fetchers.py`) before the crew runs.
+The crew receives everything it needs in the task description as a JSON block — agents
+call no tools. This avoids rate-limit failures on free-tier models.
+
 **Intent-driven chat:**
-`classify_intent(message)` uses OpenRouter (`LLM_MODEL_NAME` from env) to decide which tasks to run: `needs_news` → `research_stock_news`, `needs_metrics` → `analyze_stock_financials`, neither → default to financials.
+`classify_intent(message)` uses `INTENT_MODEL_NAME` (fast small model) to decide whether
+`needs_news` is true. If so, news is prefetched via `fetch_stock_news_sync` before the
+chat crew runs.
 
 **Service split:**
 - `ChatService` — owns the chat crew flow
@@ -73,7 +83,8 @@ Tasks use `output_pydantic=<Model>` so agents return validated Pydantic objects.
 LLM_PROVIDER=openrouter                       # openrouter | openai | groq
 OPENROUTER_API_KEY=sk-or-...                  # Required for OpenRouter LLM + intent classifier
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1  # Default, can override
-LLM_MODEL_NAME=meta-llama/llama-4-scout:free  # Any model available on OpenRouter
+LLM_MODEL_NAME=google/gemma-4-31b-it:free  # Main crew model on OpenRouter
+INTENT_MODEL_NAME=meta-llama/llama-3.2-3b-instruct:free  # Fast model for intent classification
 OPENAI_API_KEY=sk-...                         # Optional fallback if LLM_PROVIDER=openai
 NEWS_API_KEY=...                              # Optional (NewsAPI fallback)
 SERPER_API_KEY=...                            # Optional (better web search)
@@ -91,3 +102,7 @@ REDIS_URL=redis://localhost:6379
 - Code reviews → `../docs/reviews/<desc>_review.md`
 - Development plans → `../docs/plan/<desc>_plan.md`
 - Design specs → `../docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
+
+
+## Key Points:
+- Never read paths like venv/ or node_modules/

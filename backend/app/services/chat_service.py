@@ -1,28 +1,26 @@
 """
-Chat Service — executes the chat crew with intent-driven task selection.
+Chat Service — prefetches data, then runs a chat-synthesis crew in a subprocess.
 """
 
 import asyncio
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 import uuid
-from crewai import Crew, Process
 
-from app.crew.agents import FinancialAgents
-from app.crew.tasks import FinancialTasks
 from app.crew.output_models import ChatAnswerOutput
 from app.services.job_store import JobStore
+from app.services.crew_runner import run_with_cancellation
+from app.services.data_fetchers import fetch_stock_snapshot_sync, fetch_stock_news_sync
 from app.services.intent_classifier import classify_intent
+from app.config import settings
 from app.utils.logger import get_logger
 from app.utils.exceptions import CrewExecutionError
 
 logger = get_logger(__name__)
 
-CHAT_TIMEOUT = 30
-
 
 class ChatService:
-    """Executes the chat crew asynchronously with intent-driven task selection."""
+    """Executes the chat crew asynchronously over pre-fetched data."""
 
     def __init__(self, job_store: Optional[JobStore] = None):
         self.job_store = job_store
@@ -32,7 +30,7 @@ class ChatService:
         message: str,
         stock_symbol: str,
         market: str,
-        job_id: Optional[str] = None
+        job_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Execute crew for chat endpoint.
 
@@ -50,64 +48,53 @@ class ChatService:
 
         if self.job_store:
             await self.job_store.create_job(job_id, "chat")
-            await self.job_store.update_job(job_id, "processing", "Initializing agents...")
+            await self.job_store.update_job(job_id, "processing", "Classifying intent...")
 
         try:
-            market_researcher = FinancialAgents.market_researcher()
-            data_analyst = FinancialAgents.financial_data_analyst()
-            advisor = FinancialAgents.investment_advisor()
-
-            if self.job_store:
-                await self.job_store.update_job(job_id, "processing", "Classifying query intent...")
-
             intent = await classify_intent(message)
             logger.info(f"Classified intent: {intent}")
 
-            tasks = []
+            loop = asyncio.get_running_loop()
+            snapshot: Dict[str, Any] = {}
+            news: list = []
 
             if self.job_store:
-                await self.job_store.update_job(job_id, "processing", "Analyzing financial data...")
+                await self.job_store.update_job(job_id, "processing", "Fetching stock data...")
 
-            if intent["needs_news"]:
-                tasks.append(FinancialTasks.research_stock_news(
-                    market_researcher, stock_symbol, stock_symbol
-                ))
+            # Always fetch the snapshot — it's cheap and grounds the response.
+            snapshot = await loop.run_in_executor(
+                None, fetch_stock_snapshot_sync, stock_symbol, "30d"
+            )
 
-            if intent["needs_metrics"]:
-                tasks.append(FinancialTasks.analyze_stock_financials(
-                    data_analyst, stock_symbol, market
-                ))
-
-            if not tasks:
-                tasks.append(FinancialTasks.analyze_stock_financials(
-                    data_analyst, stock_symbol, market
-                ))
+            if intent.get("needs_news"):
+                if self.job_store:
+                    await self.job_store.update_job(job_id, "processing", "Fetching news...")
+                news = await loop.run_in_executor(
+                    None, fetch_stock_news_sync, stock_symbol, 5
+                )
 
             if self.job_store:
                 await self.job_store.update_job(job_id, "processing", "Synthesizing response...")
 
-            tasks.append(FinancialTasks.synthesize_chat_response(
-                advisor, message, stock_symbol, market
-            ))
-
-            crew = Crew(
-                agents=[market_researcher, data_analyst, advisor],
-                tasks=tasks,
-                process=Process.sequential,
-                verbose=True,
-                memory=False,
-                cache=True,
+            result_json = await run_with_cancellation(
+                target_name="chat_crew",
+                args={
+                    "user_question": message,
+                    "stock_symbol": stock_symbol,
+                    "market": market,
+                    "prefetched_snapshot": snapshot,
+                    "prefetched_news": news,
+                },
+                timeout=settings.CREW_TIMEOUT_SECONDS,
             )
+            output = ChatAnswerOutput.model_validate_json(result_json)
 
-            result = await self._run_crew_with_timeout(crew, timeout=CHAT_TIMEOUT)
-
-            output: ChatAnswerOutput = result.pydantic
             response_data = {
                 "response": output.response,
                 "sources": [s.model_dump() for s in output.sources],
-                "agent_reasoning": output.agent_reasoning,
+                "agent_reasoning": {"investment_advisor": output.agent_reasoning},
                 "stock_symbol": stock_symbol,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             if self.job_store:
@@ -131,10 +118,3 @@ class ChatService:
             if self.job_store:
                 await self.job_store.update_job(job_id, "failed", error=error_msg)
             raise CrewExecutionError(error_msg)
-
-    async def _run_crew_with_timeout(self, crew: Crew, timeout: int):
-        loop = asyncio.get_event_loop()
-        return await asyncio.wait_for(
-            loop.run_in_executor(None, crew.kickoff),
-            timeout=timeout
-        )

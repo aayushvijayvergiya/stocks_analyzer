@@ -20,7 +20,7 @@ class SectorInfo(BaseModel):
 
 
 class SectorRankingOutput(BaseModel):
-    """Output of identify_top_sectors task."""
+    """Sector ranking produced by direct yfinance fetch (_fetch_sectors_sync)."""
     sectors: List[SectorInfo]
 
 
@@ -38,9 +38,9 @@ class StockPickOutput(BaseModel):
     """A single stock recommendation."""
     symbol: str
     company_name: str
-    current_price: float
+    current_price: Optional[float] = None
     currency: str
-    change_percent: float
+    change_percent: Optional[float] = None
     recommendation_score: float = Field(ge=0, le=10)
     reasoning: str
     key_metrics: Optional[KeyMetricsOutput] = None
@@ -64,11 +64,11 @@ class FundPickOutput(BaseModel):
     """A single ETF/fund recommendation."""
     symbol: str
     name: str
-    current_nav: float
+    current_nav: Optional[float] = None
     currency: str
     expense_ratio: Optional[float] = None
     aum: Optional[str] = None
-    change_percent: float
+    change_percent: Optional[float] = None
     recommendation_score: float = Field(ge=0, le=10)
     reasoning: str
 
