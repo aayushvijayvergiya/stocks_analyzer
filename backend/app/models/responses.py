@@ -42,7 +42,7 @@ class StockRecommendation(BaseModel):
     company_name: Optional[str] = Field(None, description="Full name of the company")
     current_price: Optional[float] = Field(None, description="Current stock price")
     currency: Optional[str] = Field(None, description="Currency of the stock price")
-    change_percentage: Optional[float] = Field(None, description="Percentage change in stock price")
+    change_percent: Optional[float] = Field(None, description="Percentage change in stock price")
     recommendation_score: Optional[float] = Field(None, description="Overall recommendation score")
     reasoning: str = Field(..., description="Reasoning behind the recommendation")
     key_metrics: Optional[KeyMetrics]

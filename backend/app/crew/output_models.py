@@ -20,7 +20,7 @@ class SectorInfo(BaseModel):
 
 
 class SectorRankingOutput(BaseModel):
-    """Output of identify_top_sectors task."""
+    """Sector ranking produced by direct yfinance fetch (_fetch_sectors_sync)."""
     sectors: List[SectorInfo]
 
 

@@ -50,7 +50,7 @@ async def classify_intent(message: str) -> Dict[str, bool]:
         client = _get_client()
 
         response = await client.chat.completions.create(
-            model=settings.LLM_MODEL_NAME,
+            model=settings.INTENT_MODEL_NAME,
             messages=[
                 {
                     "role": "system",

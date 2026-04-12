@@ -52,7 +52,7 @@ export interface StockRecommendation {
   company_name: string
   current_price: number
   currency: string
-  change_percentage: number
+  change_percent: number
   recommendation_score: number
   reasoning: string
   key_metrics: KeyMetrics

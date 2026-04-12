@@ -207,9 +207,9 @@ class SectorStocksMapperTool(BaseTool):
         result = f"Top Stocks in {sector} Sector ({market} Market):\n"
         result += "=" * 60 + "\n\n"
         
-        # Fetch data for each stock
+        # Fetch data for each stock — cap at 5 to avoid blocking the crew timeout
         stock_data = []
-        for symbol in stocks[:limit]:
+        for symbol in stocks[:min(limit, 5)]:
             try:
                 data = self._get_stock_summary(symbol)
                 if data:

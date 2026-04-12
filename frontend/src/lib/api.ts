@@ -10,7 +10,7 @@ import type {
   ApiError,
 } from './types'
 
-const BASE = '/api/v1'
+const BASE = 'http://localhost:8000/api/v1'
 
 function requestId() {
   return Math.random().toString(36).slice(2, 10)

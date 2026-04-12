@@ -36,7 +36,7 @@ function fmtLargeNum(n: number) {
 
 export function StockCard({ stock }: { stock: StockRecommendation }) {
   const [expanded, setExpanded] = useState(false)
-  const positive = stock.change_percentage >= 0
+  const positive = stock.change_percent >= 0
 
   return (
     <Card className="bg-slate-900 border-slate-800">
@@ -54,7 +54,7 @@ export function StockCard({ stock }: { stock: StockRecommendation }) {
           </span>
           <span className={cn('flex items-center gap-0.5 text-xs font-medium', positive ? 'text-green-400' : 'text-red-400')}>
             {positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            {positive ? '+' : ''}{fmt(stock.change_percentage)}%
+            {positive ? '+' : ''}{fmt(stock.change_percent)}%
           </span>
         </div>
       </CardHeader>

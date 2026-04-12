@@ -76,18 +76,6 @@ class Source(BaseModel):
     
     
 class AgentReasoning(BaseModel):
-    market_researcher: Optional[str] = Field(
-        None,
-        description="Reasoning from the market researcher agent"
-    )
-    data_analyst: Optional[str] = Field(
-        None,
-        description="Reasoning from the data analyst agent"
-    )
-    sector_analyst: Optional[str] = Field(
-        None,
-        description="Reasoning from the sector analyst agent"
-    )
     investment_advisor: Optional[str] = Field(
         None,
         description="Reasoning from the investment advisor agent"
