@@ -50,12 +50,12 @@ export interface KeyMetrics {
 export interface StockRecommendation {
   symbol: string
   company_name: string
-  current_price: number
+  current_price: number | null
   currency: string
-  change_percent: number
+  change_percent: number | null
   recommendation_score: number
   reasoning: string
-  key_metrics: KeyMetrics
+  key_metrics: KeyMetrics | null
 }
 
 export interface SectorRecommendation {
@@ -70,11 +70,11 @@ export interface SectorRecommendation {
 export interface FundRecommendation {
   symbol: string
   name: string
-  current_nav: number
+  current_nav: number | null
   currency: string
-  expense_ratio: number
-  aum: string
-  change_percent: number
+  expense_ratio: number | null
+  aum: string | null
+  change_percent: number | null
   recommendation_score: number
   reasoning: string
 }

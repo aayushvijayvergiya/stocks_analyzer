@@ -12,7 +12,7 @@ function ScoreBadge({ score }: { score: number }) {
 
 export function FundCard({ fund }: { fund: FundRecommendation }) {
   const [expanded, setExpanded] = useState(false)
-  const pos = fund.change_percent >= 0
+  const pos = (fund.change_percent ?? 0) >= 0
   return (
     <Card className="bg-slate-900 border-slate-800">
       <CardHeader className="pb-2 pt-4 px-4">
@@ -25,18 +25,20 @@ export function FundCard({ fund }: { fund: FundRecommendation }) {
         </div>
         <div className="flex items-center justify-between mt-2">
           <span className="text-sm font-medium text-slate-200">
-            {new Intl.NumberFormat('en-US', { style: 'currency', currency: fund.currency, minimumFractionDigits: 2 }).format(fund.current_nav)}
+            {fund.current_nav != null
+              ? new Intl.NumberFormat('en-US', { style: 'currency', currency: fund.currency, minimumFractionDigits: 2 }).format(fund.current_nav)
+              : 'N/A'}
           </span>
           <span className={cn('flex items-center gap-0.5 text-xs font-medium', pos ? 'text-green-400' : 'text-red-400')}>
             {pos ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            {pos ? '+' : ''}{fund.change_percent.toFixed(2)}%
+            {fund.change_percent != null ? `${pos ? '+' : ''}${fund.change_percent.toFixed(2)}%` : 'N/A'}
           </span>
         </div>
       </CardHeader>
       <CardContent className="px-4 pb-4">
         <div className="flex gap-4 text-xs text-slate-400 mb-2">
-          <span>Expense: <span className="text-slate-300">{fund.expense_ratio}%</span></span>
-          <span>AUM: <span className="text-slate-300">{fund.aum}</span></span>
+          <span>Expense: <span className="text-slate-300">{fund.expense_ratio != null ? `${fund.expense_ratio}%` : 'N/A'}</span></span>
+          <span>AUM: <span className="text-slate-300">{fund.aum ?? 'N/A'}</span></span>
         </div>
         <button onClick={() => setExpanded(v => !v)}
           className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors">

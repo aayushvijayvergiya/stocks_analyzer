@@ -36,7 +36,8 @@ function fmtLargeNum(n: number) {
 
 export function StockCard({ stock }: { stock: StockRecommendation }) {
   const [expanded, setExpanded] = useState(false)
-  const positive = stock.change_percent >= 0
+  const positive = (stock.change_percent ?? 0) >= 0
+  const km = stock.key_metrics
 
   return (
     <Card className="bg-slate-900 border-slate-800">
@@ -50,11 +51,11 @@ export function StockCard({ stock }: { stock: StockRecommendation }) {
         </div>
         <div className="flex items-center justify-between mt-2">
           <span className="text-sm font-medium text-slate-200">
-            {fmtCurrency(stock.current_price, stock.currency)}
+            {stock.current_price != null ? fmtCurrency(stock.current_price, stock.currency) : 'N/A'}
           </span>
           <span className={cn('flex items-center gap-0.5 text-xs font-medium', positive ? 'text-green-400' : 'text-red-400')}>
             {positive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            {positive ? '+' : ''}{fmt(stock.change_percent)}%
+            {stock.change_percent != null ? `${positive ? '+' : ''}${fmt(stock.change_percent)}%` : 'N/A'}
           </span>
         </div>
       </CardHeader>
@@ -70,25 +71,27 @@ export function StockCard({ stock }: { stock: StockRecommendation }) {
 
         {expanded && (
           <div className="mt-3 space-y-3">
-            <table className="w-full text-xs text-slate-400">
-              <tbody className="divide-y divide-slate-800">
-                {[
-                  ['Market Cap', fmtLargeNum(stock.key_metrics.market_cap)],
-                  ['P/E Ratio', fmt(stock.key_metrics.pe_ratio)],
-                  ['EPS', fmt(stock.key_metrics.eps)],
-                  ['ROE', `${fmt(stock.key_metrics.roe)}%`],
-                  ['D/E Ratio', fmt(stock.key_metrics.debt_to_equity)],
-                  ['Dividend Yield', `${fmt(stock.key_metrics.dividend_yield)}%`],
-                  ['52W High', fmtCurrency(stock.key_metrics.fifty_two_week_high, stock.currency)],
-                  ['52W Low', fmtCurrency(stock.key_metrics.fifty_two_week_low, stock.currency)],
-                ].map(([label, value]) => (
-                  <tr key={label} className="py-1">
-                    <td className="py-1 text-slate-500">{label}</td>
-                    <td className="py-1 text-right text-slate-300 font-medium">{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {km && (
+              <table className="w-full text-xs text-slate-400">
+                <tbody className="divide-y divide-slate-800">
+                  {[
+                    ['Market Cap', fmtLargeNum(km.market_cap)],
+                    ['P/E Ratio', fmt(km.pe_ratio)],
+                    ['EPS', fmt(km.eps)],
+                    ['ROE', `${fmt(km.roe)}%`],
+                    ['D/E Ratio', fmt(km.debt_to_equity)],
+                    ['Dividend Yield', `${fmt(km.dividend_yield)}%`],
+                    ['52W High', km.fifty_two_week_high != null ? fmtCurrency(km.fifty_two_week_high, stock.currency) : '—'],
+                    ['52W Low', km.fifty_two_week_low != null ? fmtCurrency(km.fifty_two_week_low, stock.currency) : '—'],
+                  ].map(([label, value]) => (
+                    <tr key={label} className="py-1">
+                      <td className="py-1 text-slate-500">{label}</td>
+                      <td className="py-1 text-right text-slate-300 font-medium">{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
             <p className="text-xs text-slate-400 leading-relaxed">{stock.reasoning}</p>
           </div>
         )}

@@ -85,11 +85,11 @@ class StockRecommendationResponse(BaseModel):
 class FundRecommendation(BaseModel):
     symbol: str = Field(..., description="Fund symbol")
     name: str = Field(..., description="Full name of the fund")
-    current_nav: float = Field(..., description="Current Net Asset Value")
+    current_nav: Optional[float] = Field(None, description="Current Net Asset Value")
     currency: str = Field(..., description="Currency of the NAV")
     expense_ratio: Optional[float] = Field(None, description="Expense ratio percentage")
     aum: Optional[str] = Field(None, description="Assets Under Management")
-    change_percent: float = Field(..., description="Percentage change in NAV")
+    change_percent: Optional[float] = Field(None, description="Percentage change in NAV")
     recommendation_score: float = Field(..., description="Overall recommendation score")
     reasoning: str = Field(..., description="Reasoning behind the recommendation")
 
